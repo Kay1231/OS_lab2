@@ -17,7 +17,7 @@ void bootMain(void) {
 
 void bootMain(void) {
 	int i = 0;
-	int phoff = 0x34; // gcc版本较高(gcc版本高于gcc4)请注释掉此行
+	//int phoff = 0x34; // gcc版本较高(gcc版本高于gcc4)请注释掉此行
 	int offset = 0x1000; 
 	unsigned int elf = 0x100000;
 	void (*kMainEntry)(void);
@@ -28,6 +28,9 @@ void bootMain(void) {
 	}
 
 	// TODO: 填写kMainEntry、phoff、offset
+	struct ELFHeader *elfHeader = (struct ELFHeader *)elf;
+	struct ProgramHeader *ph = (struct ProgramHeader *)(elf + elfHeader->phoff);
+	kMainEntry = (void(*)(void))elfHeader->entry;
 	// gcc版本较高不需要填写 phoff 和 offset
 	// kMainEntry = (void(*)(void))(...elf...); 这里给出一个提示，注意阅读boot.h中关于ELFHeader相关代码
 	for (i = 0; i < 200 * 512; i++) {
