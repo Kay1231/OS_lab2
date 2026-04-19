@@ -1,5 +1,9 @@
 #include "x86.h"
 #include "device.h"
+#include "boot.h"
+
+extern void waitDisk(void);
+extern void readSect(void *dst, int offset);
 
 SegDesc gdt[NR_SEGMENTS];       // the new GDT, NR_SEGMENTS=7, defined in x86/memory.h
 TSS tss;
@@ -59,5 +63,18 @@ size of user program is not greater than 200*512 bytes, i.e., 100KB
 
 void loadUMain(void) {
 	// TODO: 参照bootloader加载内核的方式
+	int i;
+    uint32_t user_addr = 0x200000; // 用户程序加载地址：2MB
+    uint32_t user_start_sector = 201; // 用户程序在磁盘的起始扇区（内核占1-200）
+    void (*uMainEntry)(void); // 用户程序入口指针
+
+    // 1. 从磁盘读取用户程序到内存 0x200000
+    for (i = 0; i < 200; i++) {
+        readSect((void*)(user_addr + i * 512), user_start_sector + i);
+    }
+
+    // 2. 解析 ELF 头，获取用户程序入口地址（参照 bootloader）
+    struct ELFHeader *elf_header = (struct ELFHeader *)user_addr;
+    uMainEntry = (void(*)(void))elf_header->entry;
 	enterUserSpace(uMainEntry);
 }
