@@ -146,6 +146,7 @@ void syscallPrint(struct TrapFrame *tf) {
 	char *str = (char*)tf->edx;
 	int size = tf->ebx;
 	int i = 0;
+	uint16_t *vga = (uint16_t *)VGA_BASE;
 	int pos = 0;
 	char character = 0;
 	uint16_t data = 0;

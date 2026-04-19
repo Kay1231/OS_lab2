@@ -57,11 +57,13 @@ int32_t syscall(int num, uint32_t a1,uint32_t a2,
 
 char getChar(){ // 对应SYS_READ STD_IN
 	// TODO: 实现getChar函数，方式不限
+	return (char)syscall(SYS_READ, STD_IN, 0, 0, 0, 0);
 }
 
 void getStr(char *str, int size){ // 对应SYS_READ STD_STR
 	// TODO: 实现getStr函数，方式不限
-	return;
+	if (size <= 0) return;
+	syscall(SYS_READ, STD_STR, (uint32_t)str, (uint32_t)size, 0, 0);
 }
 
 int dec2Str(int decimal, char *buffer, int size, int count);
@@ -80,9 +82,57 @@ void printf(const char *format,...){
 	char *string=0;
 	char character=0;
 	while(format[i]!=0){
-		buffer[count] = format[i];
-		count++;
-		// TODO: in lab2
+		char ch = format[i];
+		if (state == 0) {
+			if (ch == '%') {
+				state = 1;
+			} else {
+				// 边界判断，防止越界
+				if(count < MAX_BUFFER_SIZE){
+					buffer[count++] = ch;
+				}
+			}
+		} else if (state == 1) {
+			state = 0;
+			// 32位栈：所有参数固定偏移4字节
+			uint32_t arg_addr = (uint32_t)paraList + sizeof(int)*index;
+			switch (ch) {
+				case 'd':
+					decimal = *(int*)arg_addr;
+					index++;
+					count = dec2Str(decimal, buffer, MAX_BUFFER_SIZE, count);
+					break;
+				case 'x':
+					hexadecimal = *(uint32_t*)arg_addr;
+					index++;
+					count = hex2Str(hexadecimal, buffer, MAX_BUFFER_SIZE, count);
+					break;
+				case 's':
+					string = *(char**)arg_addr;
+					index++;
+					count = str2Str(string, buffer, MAX_BUFFER_SIZE, count);
+					break;
+				case 'c':
+					character = *(char*)arg_addr;
+					index++;
+					if(count < MAX_BUFFER_SIZE){
+						buffer[count++] = character;
+					}
+					break;
+				case '%':
+					if(count < MAX_BUFFER_SIZE){
+						buffer[count++] = '%';
+					}
+					break;
+				default:
+					if(count < MAX_BUFFER_SIZE){
+						buffer[count++] = '%';
+						buffer[count++] = ch;
+					}
+					break;
+			}
+		}
+		i++;
 	}
 	if(count!=0)
 		syscall(SYS_WRITE, STD_OUT, (uint32_t)buffer, (uint32_t)count, 0, 0);
