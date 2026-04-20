@@ -20,8 +20,6 @@ void bootMain(void) {
 	//int phoff = 0x34; // gcc版本较高(gcc版本高于gcc4)请注释掉此行
 	int offset = 0x1000; 
 	unsigned int elf = 0x100000;
-	short unsigned *vga = (short unsigned *)0xB8000;
-    vga[0] = (0x0C << 8) | 'B';  // 已
 	void (*kMainEntry)(void);
 	kMainEntry = (void(*)(void))0x100000;
 
