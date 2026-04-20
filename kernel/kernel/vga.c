@@ -52,4 +52,5 @@ void scrollScreen() {
 		pos = i * 2;
 		asm volatile("movw %0, (%1)"::"r"(data),"r"(pos+0xb8000));
 	}
+	displayRow = 24;
 }

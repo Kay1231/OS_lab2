@@ -27,4 +27,6 @@ initIntr(void) {
 	//outByte(PORT_PIC_MASTER + 1, 0xFE); // OCW1, Enable Timer IRQ
 	//outByte(PORT_PIC_MASTER + 1, 0xFF); // OCW1, Disable Master PIC all IRQs
 	//outByte(PORT_PIC_SLAVE + 1, 0xFF); // OCW1, Disable Slave PIC all IRQs
+	outByte(PORT_PIC_MASTER + 1, 0xFD); // 二进制 1111 1101，只有 IRQ1 为 0
+    outByte(PORT_PIC_SLAVE + 1, 0xFF);  // 从片全部屏蔽
 }

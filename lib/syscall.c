@@ -113,7 +113,7 @@ void printf(const char *format,...){
 					count = str2Str(string, buffer, MAX_BUFFER_SIZE, count);
 					break;
 				case 'c':
-					character = *(char*)arg_addr;
+					character = (char)(*(int*)arg_addr);
 					index++;
 					if(count < MAX_BUFFER_SIZE){
 						buffer[count++] = character;

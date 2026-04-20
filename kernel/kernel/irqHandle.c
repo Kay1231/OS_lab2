@@ -1,6 +1,6 @@
 #include "x86.h"
 #include "device.h"
-#include "keyboard.h"
+#include "device/keyboard.h"
 
 extern int displayRow;
 extern int displayCol;
@@ -26,21 +26,6 @@ void syscallPrint(struct TrapFrame *tf);
 void syscallRead(struct TrapFrame *tf);
 void syscallGetChar(struct TrapFrame *tf);
 void syscallGetStr(struct TrapFrame *tf);
-
-// 滚屏辅助函数
-static void scrollScreen() {
-    uint16_t *vga = (uint16_t *)VGA_BASE;
-    // 上移一行
-    for (int i = 0; i < (VGA_HEIGHT - 1) * VGA_WIDTH; i++) {
-        vga[i] = vga[i + VGA_WIDTH];
-    }
-    // 清空最后一行
-    for (int i = (VGA_HEIGHT - 1) * VGA_WIDTH; i < VGA_HEIGHT * VGA_WIDTH; i++) {
-        vga[i] = ' ' | (VGA_ATTR << 8);
-    }
-    displayRow = VGA_HEIGHT - 1;
-}
-
 
 void irqHandle(struct TrapFrame *tf) { // pointer tf = esp
 	/*
@@ -78,14 +63,19 @@ void KeyboardHandle(struct TrapFrame *tf){
 	if(code == 0xe){ // 退格符
 		// TODO: 要求只能退格用户键盘输入的字符串，且最多退到当行行首
 		// 如果缓冲区不空且光标不在行首，删除最后一个字符
-        if (bufferHead != bufferTail && displayCol > 0) {
-            bufferTail = (bufferTail - 1 + MAX_KEYBUFFER_SIZE) % MAX_KEYBUFFER_SIZE;
-            // 更新屏幕：删除字符
+        if (displayCol > 0) {
             displayCol--;
             uint16_t *vga = (uint16_t*)0xB8000;
             int pos = displayRow * 80 + displayCol;
             vga[pos] = (0x0C << 8) | ' ';  // 空格覆盖
-        }
+
+			// 将退格符塞入缓冲区，通知 getStr
+        	int next = (bufferTail + 1) % MAX_KEYBUFFER_SIZE;
+        	if (next != bufferHead) {
+            	keyBuffer[bufferTail] = '\b'; // 写入退格符
+            	bufferTail = next;
+        	}
+		}
 	}else if(code == 0x1c){ // 回车符
 		// TODO: 处理回车情况
 		int next = (bufferTail + 1) % MAX_KEYBUFFER_SIZE;
@@ -147,9 +137,9 @@ void syscallPrint(struct TrapFrame *tf) {
 	int size = tf->ebx;
 	int i = 0;
 	uint16_t *vga = (uint16_t *)VGA_BASE;
-	int pos = 0;
+	// int pos = 0;
 	char character = 0;
-	uint16_t data = 0;
+	// uint16_t data = 0;
 	asm volatile("movw %0, %%es"::"m"(sel));
 	for (i = 0; i < size; i++) {
 		asm volatile("movb %%es:(%1), %0":"=r"(character):"r"(str+i));
@@ -216,12 +206,16 @@ void syscallGetStr(struct TrapFrame *tf){
 
         if (c == '\n') {
             break;
-        } else {
-            asm volatile("movb %0, %%es:(%1)"::"r"(c), "r"(buf+count));
+        } else if (c == '\b') {
+			if (count > 0) {
+				count--;
+			}
+		} else {
+            asm volatile("movb %b0, %%es:(%1)"::"q"(c), "r"(buf+count));
             count++;
         }
     }
     // 添加字符串结束符
-    asm volatile("movb %0, %%es:(%1)"::"r"('\0'), "r"(buf+count));
+    asm volatile("movb $0, %%es:(%0)"::"r"(buf+count));
     tf->eax = count; // 返回实际读入字符数
 }

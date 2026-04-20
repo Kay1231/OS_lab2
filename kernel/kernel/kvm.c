@@ -1,6 +1,5 @@
 #include "x86.h"
 #include "device.h"
-#include "boot.h"
 
 extern void waitDisk(void);
 extern void readSect(void *dst, int offset);
@@ -75,6 +74,16 @@ void loadUMain(void) {
 
     // 2. 解析 ELF 头，获取用户程序入口地址（参照 bootloader）
     struct ELFHeader *elf_header = (struct ELFHeader *)user_addr;
+    struct ProgramHeader *ph = (struct ProgramHeader *)(user_addr + elf_header->phoff);
+    
+    // 获取段在文件中的偏移量 (通常是 0x1000)
+    uint32_t offset = ph->off; 
     uMainEntry = (void(*)(void))elf_header->entry;
-	enterUserSpace(uMainEntry);
+
+    // 3. 将真正的代码段数据覆盖掉 ELF 头，对齐内存
+    for (i = 0; i < 200 * 512; i++) {
+        *(unsigned char *)(user_addr + i) = *(unsigned char *)(user_addr + i + offset);
+    }
+
+    enterUserSpace((uint32_t)uMainEntry);
 }
