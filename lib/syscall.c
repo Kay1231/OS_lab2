@@ -1,5 +1,6 @@
 #include "lib.h"
 #include "types.h"
+#include <stdarg.h>
 /*
  * io lib here
  * 库函数写在这
@@ -57,7 +58,13 @@ int32_t syscall(int num, uint32_t a1,uint32_t a2,
 
 char getChar(){ // 对应SYS_READ STD_IN
 	// TODO: 实现getChar函数，方式不限
-	return (char)syscall(SYS_READ, STD_IN, 0, 0, 0, 0);
+	char c = (char)syscall(SYS_READ, STD_IN, 0, 0, 0, 0);
+    // 自动换行：输出 '\n'
+    // 方法1：直接调用 syscall 输出单个字符
+    syscall(SYS_WRITE, STD_OUT, (uint32_t)"\n", 1, 0, 0);
+    // 方法2：如果担心干扰寄存器，可以调用已有的 putchar 或 printf
+    // printf("\n");   // 但 printf 可能尚未完全正常工作，推荐直接 syscall
+    return c;
 }
 
 void getStr(char *str, int size){ // 对应SYS_READ STD_STR
@@ -71,71 +78,67 @@ int hex2Str(uint32_t hexadecimal, char *buffer, int size, int count);
 int str2Str(char *string, char *buffer, int size, int count);
 
 void printf(const char *format,...){
-	int i=0; // format index
-	char buffer[MAX_BUFFER_SIZE];
-	int count=0; // buffer index
-	int index=0; // parameter index
-	void *paraList=(void*)&format; // address of format in stack
-	int state=0; // 0: legal character; 1: '%'; 2: illegal format
-	int decimal=0;
-	uint32_t hexadecimal=0;
-	char *string=0;
-	char character=0;
-	while(format[i]!=0){
-		char ch = format[i];
-		if (state == 0) {
-			if (ch == '%') {
-				state = 1;
-			} else {
-				// 边界判断，防止越界
-				if(count < MAX_BUFFER_SIZE){
-					buffer[count++] = ch;
-				}
-			}
-		} else if (state == 1) {
-			state = 0;
-			// 32位栈：所有参数固定偏移4字节
-			uint32_t arg_addr = (uint32_t)paraList + sizeof(int)*index;
-			switch (ch) {
-				case 'd':
-					decimal = *(int*)arg_addr;
-					index++;
-					count = dec2Str(decimal, buffer, MAX_BUFFER_SIZE, count);
-					break;
-				case 'x':
-					hexadecimal = *(uint32_t*)arg_addr;
-					index++;
-					count = hex2Str(hexadecimal, buffer, MAX_BUFFER_SIZE, count);
-					break;
-				case 's':
-					string = *(char**)arg_addr;
-					index++;
-					count = str2Str(string, buffer, MAX_BUFFER_SIZE, count);
-					break;
-				case 'c':
-					character = (char)(*(int*)arg_addr);
-					index++;
-					if(count < MAX_BUFFER_SIZE){
-						buffer[count++] = character;
-					}
-					break;
-				case '%':
-					if(count < MAX_BUFFER_SIZE){
-						buffer[count++] = '%';
-					}
-					break;
-				default:
-					if(count < MAX_BUFFER_SIZE){
-						buffer[count++] = '%';
-						buffer[count++] = ch;
-					}
-					break;
-			}
-		}
-		i++;
-	}
-	if(count!=0)
-		syscall(SYS_WRITE, STD_OUT, (uint32_t)buffer, (uint32_t)count, 0, 0);
+	int i = 0;
+    char buffer[MAX_BUFFER_SIZE];
+    int count = 0;
+    va_list args;
+    va_start(args, format);
+
+    while (format[i] != '\0') {
+        if (format[i] != '%') {
+            if (count < MAX_BUFFER_SIZE)
+                buffer[count++] = format[i];
+            i++;
+            continue;
+        }
+
+        // 处理 '%'
+        i++;
+        if (format[i] == '\0') break;
+
+        switch (format[i]) {
+            case 'd': {
+                int d = va_arg(args, int);
+                count = dec2Str(d, buffer, MAX_BUFFER_SIZE, count);
+                break;
+            }
+            case 'x': {
+                unsigned int x = va_arg(args, unsigned int);
+                count = hex2Str(x, buffer, MAX_BUFFER_SIZE, count);
+                break;
+            }
+            case 's': {
+                char *s = va_arg(args, char*);
+                count = str2Str(s, buffer, MAX_BUFFER_SIZE, count);
+                break;
+            }
+            case 'c': {
+                char c = (char)va_arg(args, int);  // char 提升为 int
+                if (count < MAX_BUFFER_SIZE)
+                    buffer[count++] = c;
+                break;
+            }
+            case '%': {
+                if (count < MAX_BUFFER_SIZE)
+                    buffer[count++] = '%';
+                break;
+            }
+            default: {
+                // 未知格式符，原样输出
+                if (count < MAX_BUFFER_SIZE)
+                    buffer[count++] = '%';
+                if (count < MAX_BUFFER_SIZE)
+                    buffer[count++] = format[i];
+                break;
+            }
+        }
+        i++;
+    }
+
+    va_end(args);
+
+    if (count > 0)
+        syscall(SYS_WRITE, STD_OUT, (uint32_t)buffer, (uint32_t)count, 0, 0);
 }
 
 int dec2Str(int decimal, char *buffer, int size, int count) {
